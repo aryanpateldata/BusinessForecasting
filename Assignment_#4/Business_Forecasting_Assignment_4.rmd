@@ -1,0 +1,310 @@
+---
+title: "Business Forecasting - Assignment #4"
+author: "Aryan Patel"
+date: "2025-10-12"
+output: html_document
+---
+
+**Business Forecasting - Assignment #4**
+
+```{r, include=FALSE}
+
+#Reading in data and importing libraries 
+data <- read.csv("/Users/aryanpatel/Downloads/GlobalLandTemperaturesByCountry.csv")
+
+library(dplyr)
+library(tidyr)
+#library(fpp)
+library(fpp3)
+library(TTR)
+library(forecast)
+
+
+```
+
+```{r}
+
+head(data)
+```
+
+
+```{r, include=TRUE}
+#Data Cleaning and Preparation. 
+
+data$dt <- as.Date(data$dt)
+
+data <- data |>
+  group_by(dt) |>
+  summarise(AverageTemperature = mean(AverageTemperature, na.rm = TRUE)) |>
+  filter(!is.na(AverageTemperature)) |>
+  filter(dt >= as.Date("1900-01-01"))
+
+
+
+
+
+
+
+
+#temperature is in celsius so we will conver to farenheit
+
+data$AverageTemperature <- (data$AverageTemperature * 9/5) + 32
+
+#cast temperature as time series object
+
+data <- ts(data$AverageTemperature, start=c(1900,1), frequency=12)
+
+
+#plot data
+plot(data, main="Global Average Yearly Temperatures (1900-2013)", ylab="Temperature (F)", xlab="Year")
+
+```
+```{r}
+
+
+head(data,5)
+```
+
+
+
+
+**You will try the different models we ran in class today on your dataset.  (2 points)
+
+```{r}
+# Mean Forecast
+mean_forecast <- meanf(data, h=60)
+plot(mean_forecast, main="Mean Forecast (60 months ahead)")
+
+# Naive Forecast
+naive_forecast <- naive(data, h=60)
+plot(naive_forecast, main="Naive Forecast (60 months ahead)")
+
+# Random Walk Forecast
+rwf_forecast <- rwf(data, h=60)
+plot(rwf_forecast, main="Random Walk Forecast (no drift - 60 months ahead)")
+
+# Random Walk with Drift
+rwf_drift <- rwf(data, h=60, drift=TRUE)
+plot(rwf_drift, main="Random Walk Forecast (with drift - 60 months ahead)")
+
+# Seasonal Naive
+snaive_forecast <- snaive(data, h=60)
+plot(snaive_forecast, main="Seasonal Naive Forecast (60 months ahead)")
+
+
+# Moving averages (order 5 and 9)
+MA5_forecast <- ma(data, order=5)
+
+plot(MA5_forecast, main="Moving Average (5 months)")
+
+# predict with ma 5
+
+
+MA9_forecast <- ma(data, order=9)
+
+plot(MA9_forecast, main="Moving Average (9 months)")
+
+
+# ===============================
+# ETS, Holt-Winters, SES
+# ===============================
+
+# ETS Model (Error, Trend, Seasonality)
+ets_forecast <- ets(data)
+
+
+plot(ets_forecast)
+title("ETS - Global Monthly Temperature (1900–2013)")
+
+
+
+# Holt-Winters Model (Level + Trend + Seasonality)
+HW_forecast <- HoltWinters(data)
+plot(HW_forecast, main="Holt-Winters Exponential Smoothing (Level + Trend + Seasonality)")
+
+
+# Simple Exponential Smoothing (Level only, no trend/seasonality)
+SSE_Simple <- HoltWinters(data, beta=FALSE, gamma=FALSE)
+plot(SSE_Simple, main="Simple Exponential Smoothing (Level Only)")
+
+
+
+
+forecast_ets_1 <- forecast.ets(ets_forecast, h=60)
+plot(forecast_ets_1, main="ETS Forecast (60 Months Ahead)")
+
+forecast_SSE_SIMPLE<- forecast(SSE_Simple, h=60)
+plot(forecast_SSE_SIMPLE, main="SSE SIMPLE forecast (60 Months Ahead)")
+
+
+HW_future <- forecast(HW_forecast, h=60)
+plot(HW_future, main="Holt-Winters Forecast (60 Months Ahead)")
+
+
+
+
+
+
+
+
+# Plot all in one chart
+library(ggplot2)
+
+# ==============================================
+# All Models discussed in class so far in one chart 
+# ==============================================
+
+autoplot(data) +
+  # Basic models
+  autolayer(mean_forecast, series = "Mean", color = "black", PI = FALSE) +
+  autolayer(naive_forecast, series = "Naive", color = "red", PI = FALSE) +
+  autolayer(rwf_forecast, series = "Random Walk", color = "purple", PI = FALSE) +
+  autolayer(rwf_drift, series = "RW Drift", color = "green", PI = FALSE) +
+  autolayer(snaive_forecast, series = "Seasonal Naive", color = "orange", PI = FALSE) +
+  autolayer(MA5_forecast, series = "MA(5)", color = "pink") +
+  autolayer(MA9_forecast, series = "MA(9)", color = "blue") +
+  
+  # Advanced models
+  autolayer(forecast_ets_1, series = "ETS", color = "darkblue", PI = FALSE) +
+  autolayer(HW_future, series = "Holt-Winters", color = "brown", PI = FALSE) +
+  autolayer(forecast_SSE_SIMPLE, series = "SES", color = "cyan4", PI = FALSE) +
+
+  labs(title = "Forecast Comparison (1900–2013)",
+       x = "Year", y = "Temperature (°F)") +
+  guides(colour = guide_legend(title = "Forecast Method")) +
+  theme_minimal(base_size = 13) +
+  coord_cartesian(xlim = c(1900, 2013))
+
+
+
+```
+
+**Explaining Model output:**
+Of the above models in the chunk above we have showed Mean, Naive, Random Walk (with and without drift), Seasonal Naive, Moving Averages (5 and 9), ETS, Holt-Winters, and Simple Exponential Smoothing.Mean as we can see is just predicting a single value for all future points so it is a quick and easy baseline model we can use if not much trend or seasonality is present . Similar with naive forecast it is quick and easy baseline model we can use if not much trend or seasonality is present . Random walk is very similar to naive but adds a bit of random noise . Random walk with drift we can see is not a flat line and will not only predict a single value but will also add a bit of trend to it . Seasonal naive uses the same values from last season to predict the next season so it is good for seasonal data . The moving averages smooth our original data and can help us see trend and seasonality more clearly . ETS is a more advanced model that can handle error , trend and seasonality in the data and the plot shows us how it is broken up into is different components . We can see the level increasing over time and strong seasonlity in temperatures. Holt Winters is a similar model to ETS and also can handle level , trend and seasonality by relying on a smoothing technique . ETS is a generelization of Holt Winters and in Holt Winters we have to specify the type of trend and seasonality we want to use . Simple Exponential Smoothing is a more basic version of Holt Winters that only considers level and ignores trend and seasonality .
+
+
+
+
+
+
+
+
+```{r}
+# ===============================
+# Model Accuracy Comparison
+# ===============================
+
+
+acc_mean   <- accuracy(mean_forecast)
+acc_naive  <- accuracy(naive_forecast)
+acc_rwf    <- accuracy(rwf_forecast)
+acc_rwf_d  <- accuracy(rwf_drift)
+acc_snaive <- accuracy(snaive_forecast)
+acc_ets    <- accuracy(forecast_ets_1)
+acc_hw     <- accuracy(HW_future)
+acc_ses    <- accuracy(forecast_SSE_SIMPLE)
+
+
+accuracy_table <- rbind(
+  data.frame(Model = "Mean Forecast",           acc_mean),
+  data.frame(Model = "Naive Forecast",          acc_naive),
+  data.frame(Model = "Random Walk (No Drift)",  acc_rwf),
+  data.frame(Model = "Random Walk (With Drift)",acc_rwf_d),
+  data.frame(Model = "Seasonal Naive",          acc_snaive),
+  data.frame(Model = "ETS",                     acc_ets),
+  data.frame(Model = "Holt-Winters",            acc_hw),
+  data.frame(Model = "Simple Exp. Smoothing",   acc_ses)
+)
+
+# in sample metrics 
+print(accuracy_table)
+
+
+```
+These are the metrics of all our models learned so far in class. I will be using MAPE as the metric to compare models . This is showing all metrics based on in sample performance. Based on in sample performance the ETS model is the best performing model with a MAPE of 0.57% , next is Holt-Winters with MAPE of 0.59%. Third is Seasonal Naive with 0.85% mape 
+
+
+
+
+
+
+
+Now since we only checked in sample performance we will also check oot performance by splitting the data into train and test sets. And see if our models performance ranking still holds or not . This will be true test as to which model performs best because we are seeing performacne on unseen data that it has not seen before . 
+
+```{r}
+# ===============================
+# Train / OOT Test split (last 60 months as test)
+# ===============================
+
+
+train_end  <- c(2008, 12)
+test_start <- c(2009,  1)
+
+train <- window(data, end   = train_end)
+test  <- window(data, start = test_start)
+
+# checks
+length(train); length(test)       
+frequency(train); frequency(test) 
+
+
+h_test <- length(test)
+
+mean_tr    <- meanf(train, h = h_test)
+naive_tr   <- naive(train, h = h_test)
+rwf_tr     <- rwf(train, h = h_test)
+rwf_d_tr   <- rwf(train, h = h_test, drift = TRUE)
+snaive_tr  <- snaive(train, h = h_test)
+
+ets_tr_fit <- ets(train)
+hw_tr_fit  <- HoltWinters(train)
+ses_tr_fit <- HoltWinters(train, beta = FALSE, gamma = FALSE)
+
+
+ets_tr_fc  <- forecast(ets_tr_fit, h = h_test)
+hw_tr_fc   <- forecast(hw_tr_fit,  h = h_test)
+ses_tr_fc  <- forecast(ses_tr_fit, h = h_test)
+
+
+
+acc_mean_oot   <- accuracy(mean_tr,   test)
+acc_naive_oot  <- accuracy(naive_tr,  test)
+acc_rwf_oot    <- accuracy(rwf_tr,    test)
+acc_rwf_d_oot  <- accuracy(rwf_d_tr,  test)
+acc_snaive_oot <- accuracy(snaive_tr, test)
+acc_ets_oot    <- accuracy(ets_tr_fc, test)
+acc_hw_oot     <- accuracy(hw_tr_fc,  test)
+acc_ses_oot    <- accuracy(ses_tr_fc, test)
+
+
+
+acc_test <- function(fc_obj, test_ts) {
+  out <- as.data.frame(accuracy(fc_obj, test_ts))
+  out[2, , drop = FALSE]  
+}
+
+
+acc_oot_table <- rbind(
+  cbind(Model = "Mean Forecast (OOT)",             acc_test(mean_tr,   test)),
+  cbind(Model = "Naive Forecast (OOT)",            acc_test(naive_tr,  test)),
+  cbind(Model = "Random Walk (No Drift) (OOT)",    acc_test(rwf_tr,    test)),
+  cbind(Model = "Random Walk (With Drift) (OOT)",  acc_test(rwf_d_tr,  test)),
+  cbind(Model = "Seasonal Naive (OOT)",            acc_test(snaive_tr, test)),
+  cbind(Model = "ETS (OOT)",                       acc_test(ets_tr_fc, test)),
+  cbind(Model = "Holt-Winters (OOT)",              acc_test(hw_tr_fc,  test)),
+  cbind(Model = "Simple Exp. Smoothing (OOT)",     acc_test(ses_tr_fc, test))
+)
+
+print(acc_oot_table)
+
+
+
+
+```
+We can see the performance on test / oot here . From this split and using MAPE we can see that . Holt winters has best performance on test/ oot with mape of 0.67% , next is ETS which has 0.73% percent mape and finally third best model on oot / test MAPE is Seasonal Naivw . 
+
+
+
+**Best Model**
+
+As holt winters performed 2nd best on in sample with a MAPE of 0.59 % and #1 best on oot / test MAPE with MAPE of 0.67% , I would say the Holt Winters model that we have learned so far is the best model for forecasting global yearly temperature. 
