@@ -1,0 +1,130 @@
+---
+title: "Assignment#5_Decomposition"
+author: "Aryan Patel"
+date: "2025-10-20"
+output: html_document
+---
+
+
+
+```{r, include=FALSE}
+
+#Reading in data and importing libraries 
+data <- read.csv("/Users/aryanpatel/Downloads/GlobalLandTemperaturesByCountry.csv")
+
+library(dplyr)
+library(tidyr)
+#library(fpp)
+library(fpp3)
+library(TTR)
+library(forecast)
+
+
+```
+
+
+
+
+```{r, include=TRUE}
+#Data Cleaning and Preparation. 
+
+data$dt <- as.Date(data$dt)
+
+data <- data |>
+  group_by(dt) |>
+  summarise(AverageTemperature = mean(AverageTemperature, na.rm = TRUE)) |>
+  filter(!is.na(AverageTemperature)) |>
+  filter(dt >= as.Date("1900-01-01"))
+
+
+
+
+
+
+
+
+#temperature is in celsius so we will conver to farenheit
+
+data$AverageTemperature <- (data$AverageTemperature * 9/5) + 32
+
+#cast temperature as time series object
+
+data <- ts(data$AverageTemperature, start=c(1900,1), frequency=12)
+
+
+#plot data
+plot(data, main="Global Average Monthly Temperatures (1900-2013)", ylab="Temperature (F)", xlab="Year")
+
+```
+
+**Performing Decomposition through Seasonal Trend dcomposition**
+
+
+```{r}
+decomposed_data <- stl(data, s.window="periodic")
+plot(decomposed_data, main="STL Decomposition of Global Average Monthly Temperatures")
+```
+
+```{r}
+attributes(decomposed_data)
+```
+
+```{r}
+seasadj(decomposed_data)
+
+plot(data)
+lines(seasadj(decomposed_data), col="red")
+```
+
+```{r}
+#Forecasting using ETS model
+f_stl <- forecast(decomposed_data)
+plot(f_stl, main="Forecasted Global Average Monthly Temperatures using STL Decomposition")
+```
+
+```{r}
+f_stl <- forecast(decomposed_data, h=120)
+plot(f_stl, main="Forecasted Global Average Monthly Temperatures using STL Decomposition 10 years heads")
+
+```
+**Trying decompose method instead of STL**
+
+
+```{r}
+decomposed_data2 <- decompose(data, type = "additive")
+
+# Convert components to a tidy structure so each can be faceted
+decompose_tbl <- as_tsibble(data) |>
+  rename(Month = index, observed = value) |>
+  mutate(
+    trend = decomposed_data2$trend,
+    seasonal = decomposed_data2$seasonal,
+    remainder = decomposed_data2$random
+  ) |>
+  pivot_longer(
+    cols = c(observed, trend, seasonal, remainder),
+    names_to = "component",
+    values_to = "temperature"
+  )
+
+decompose_tbl |>
+  ggplot(aes(x = Month, y = temperature)) +
+  geom_line() +
+  facet_wrap(~ component, ncol = 1, scales = "free_y") +
+  labs(
+    title = "Classical Additive Decomposition of Global Average Monthly Temperatures",
+    x = "Year",
+    y = "Temperature (F)"
+  )
+```
+```{r}
+attributes(decomposed_data2)
+```
+
+
+```{r}
+seasadj(decomposed_data2) |>
+  ts.plot(main="Seasonally Adjusted Global Average Monthly Temperatures using Classical Decomposition", ylab="Temperature (F)", xlab="Year")
+```
+
+
