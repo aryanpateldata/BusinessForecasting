@@ -1,0 +1,1 @@
+Performed decomposition on my data set (Monthly global temperatures from (1900 - 2013 ) using STL (Seasonal Trend decomposition via Loess ) and also performing classifical decomposition with decompose() method in R with simple moving averages. 
