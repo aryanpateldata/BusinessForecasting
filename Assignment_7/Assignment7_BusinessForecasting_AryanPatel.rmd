@@ -1,0 +1,171 @@
+---
+title: "Assignment_7_ARIMA_AryanPatel"
+author: "Aryan Patel"
+date: "2025-11-23"
+output: html_document
+---
+
+
+
+```{r, include=FALSE}
+
+#Reading in data and importing libraries 
+data <- read.csv("/Users/aryanpatel/Downloads/GlobalLandTemperaturesByCountry.csv")
+
+library(dplyr)
+library(tidyr)
+#library(fpp)
+library(fpp3)
+library(TTR)
+library(forecast)
+
+
+```
+
+
+
+
+```{r, include=TRUE}
+#Data Cleaning and Preparation. 
+
+data$dt <- as.Date(data$dt)
+
+data <- data |>
+  group_by(dt) |>
+  summarise(AverageTemperature = mean(AverageTemperature, na.rm = TRUE)) |>
+  filter(!is.na(AverageTemperature)) |>
+  filter(dt >= as.Date("1900-01-01"))
+
+
+
+
+
+
+
+
+#temperature is in celsius so we will conver to farenheit
+
+data$AverageTemperature <- (data$AverageTemperature * 9/5) + 32
+
+#cast temperature as time series object
+
+data <- ts(data$AverageTemperature, start=c(1900,1), frequency=12)
+
+
+#plot data
+plot(data, main="Global Average Monthly Temperatures (1900-2013)", ylab="Temperature (F)", xlab="Year")
+
+```
+
+
+```{r}
+auto_fit <- auto.arima(data, trace=TRUE, stepwise = FALSE)
+auto_fit
+attributes(auto_fit)
+```
+
+
+**Checking output**
+
+```{r}
+auto_fit
+```
+
+After running auto arima and trying all possible arima models . Our best model fit to our data is ARIMA(1,0,1)(1,1,2)[12] . This means for the non seasonal part p = 1 , d = 9 , q = 1 . So p is AR(1) . D = 0 so no regular differencing . and q = 1 so MA(1) . For the seasonal part we have p = 1 , d = 1 , q = 2 , m = 12. So p = 1 meaning seasonal AR(1) at lag 12 . D = 1 so 1 seasonal difference . Q = 2 so seasonal MA(2) at lags 12 and 24 . m = 12 so the seasonality is yearly (for monthly data). The short term AR and MA 1 indicate the current value depends a lot on yesterdays value and current value depends on yesterday shock. Seasonal AR1 means the current value depends on same month last year . Seasonal MA2 means current value depends on shocks from last year and 2 years ago . This is in line with our expectations and intuition as to predict the current or next months average weather there is definitely seasonality and using the value of same period of previous season will be very helpful. In addition the current months weather will be very close to previous months weather . 
+
+```{r}
+plot(data)
+lines(auto_fit$fitted, col="blue")
+```
+
+Residual Analysis 
+
+
+```{r}
+Acf(auto_fit$residuals)
+```
+From viewing the acf of the residuals most of the lags are not significant showing the arima (sarima) model has captured a lot of the useful information from the data . There are some significant lags at 24 showing there could be more information captured when predicting the average global monthly temperature from the same period 2 seasons ago . 
+
+
+```{r}
+fitted_vals <- auto_fit$fitted
+resids <- auto_fit$residuals
+```
+
+
+
+
+```{r}
+plot(fitted_vals, resids,
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted")
+abline(h = 0, col = "red")
+```
+
+From viewing the fitted values vs residuals we can see the values look like random noise spread around 0 . This means the model is accurately capturing the information from the data and performing well. 
+
+
+
+```{r}
+checkresiduals(auto_fit)
+```
+Used check residuals to view histogram of residuals . We can see the residuals have a normal distribution around 0 meaning the model has captured all systematic structure . 
+
+
+
+
+Checking actual vs fitted
+
+
+```{r}
+actual <- auto_fit$x         
+fitted_vals <- auto_fit$fitted
+resids <- auto_fit$residuals
+
+
+
+plot(actual, resids,
+     xlab = "Actual Values",
+     ylab = "Residuals",
+     main = "Residuals vs Actual Values")
+abline(h = 0, col="red")
+```
+The residuals vs actual values also show randomly scatter points around 0 , no patterns , Meaning the model has captured most of the information from the data 
+
+
+
+
+
+
+Forecasting 5 months ahead and plotting 
+
+```{r}
+fc <- forecast(auto_fit,h = 5)
+fc
+
+autoplot(fc) +
+  ggplot2::labs(
+    title = "5-Month Forecast",
+    x = "Time",
+    y = "Value"
+  )
+
+```
+
+
+
+Checking accuracy of the model 
+
+
+
+```{r}
+auto_fit |>
+accuracy()
+
+```
+
+From the metrics we can see the sarima model is performing very well on our data . MAE is only 0.359 meaning we are able to predict the global monthly average temperatures below 1 degree of error , based on in sample metrics . The mape is also 0.56 so less then 1 percent , 0.56% is our average difference in percent from the true value to our predicted . From these metrics we can see the model is performing very well and is very accurate in predicting the global monthly average temperature. 
+
+
+
